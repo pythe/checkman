@@ -4,23 +4,24 @@ require 'json'
 require 'time'
 
 class CodeshipBuild
-  BUILD_ID = 'id'
-  COMMIT_ID = 'commit_id'
+  BUILD_ID = 'uuid'
+  PROJECT_ID = 'project_uuid'
+  COMMIT_ID = 'commit_sha'
   STATUS = 'status'
-  MESSAGE = 'message'
+  MESSAGE = 'commit_message'
   BRANCH = 'branch'
   FINISHED_AT = 'finished_at'
-  STARTED_AT = 'started_at'
+  STARTED_AT = 'queued_at'
 
   SUCCESSFUL_STATUS = 'success'
   BUILDING_STATUS = 'testing'
 
-  def initialize(build_data, project_id)
+  def initialize(build_data)
     @build_data = build_data
-    @project_id = project_id
+    @project_uuid = build_data[PROJECT_ID]
   end
 
-  def number
+  def build_uuid
     build_data[BUILD_ID]
   end
 
@@ -37,7 +38,7 @@ class CodeshipBuild
   end
 
   def build_url
-    "https://codeship.com/projects/#{project_id}/builds/#{number}"
+    build_data["links"]["pipelines"]
   end
 
   def last_commit_short_sha
@@ -67,7 +68,6 @@ class CodeshipBuild
 
   def as_json
     [
-      [:Build, number],
       [:SHA, last_commit_short_sha],
       [:Branch, branch_name],
       [:Message, last_commit_message],
@@ -77,11 +77,10 @@ class CodeshipBuild
 
   private
 
-  attr_reader :build_data, :project_id
+  attr_reader :build_data, :project_uuid
 end
 
 class CodeshipProject
-  PROJECT_ID = 'id'
   BUILDS = 'builds'
 
   def self.from_json_api(api_response)
@@ -92,12 +91,8 @@ class CodeshipProject
     @project_data = project_data
   end
 
-  def id
-    project_data[PROJECT_ID]
-  end
-
   def builds
-    @builds ||= project_data[BUILDS].map { |b| CodeshipBuild.new(b, id) }
+    @builds ||= project_data[BUILDS].map { |b| CodeshipBuild.new(b) }
   end
 
   def builds_in(branch_name)
@@ -158,10 +153,13 @@ class CodeshipBuildStatus
 end
 
 class Codeship
-  def initialize(project_id, api_key, branch_name)
-    raise ArgumentError 'project_id must not be nil' unless @project_id = project_id
-    raise ArgumentError 'api_key must not be nil' unless @api_key = api_key
+  def initialize(org_uuid, project_uuid, username, password, branch_name)
+    raise ArgumentError 'org_uuid must not be nil' unless @org_uuid = org_uuid
+    raise ArgumentError 'project_uuid must not be nil' unless @project_uuid = project_uuid
+    raise ArgumentError 'username must not be nil' unless @username = username
+    raise ArgumentError 'password must not be nil' unless @password = password
     raise ArgumentError 'branch_name must not be nil' unless @branch_name = branch_name
+    authenticate
   end
 
   def latest_status
@@ -170,15 +168,23 @@ class Codeship
 
   private
 
-  attr_reader :project_id, :api_key, :branch_name
+  attr_reader :org_uuid, :project_uuid, :username, :password, :branch_name, :access_token
 
   def builds_url
-    "https://codeship.com/api/v1/projects/#{project_id}.json?api_key=#{api_key}"
+    "https://api.codeship.com/v2/organizations/#{org_uuid}/projects/#{project_uuid}/builds"
   end
 
   def http_get(url)
-    curl = "curl -s -A \"CheckmanCodeship (Hostname: $HOSTNAME)\" '#{url}'"
+    curl = "curl -s -A \"CheckmanCodeship (Hostname: $HOSTNAME)\" -H\"Authorization: Bearer #{access_token}\" '#{url}'"
     `#{curl}`.tap { |o| $stderr.puts curl, o }
+  end
+
+  def authenticate
+    curl = "curl -s -A \"CheckmanCodeship (Hostname: $HOSTNAME)\" -X POST -H\"Content-Type:application/json\" -H\"Accept:application/json\" --user \"#{username}:#{password}\" https://api.codeship.com/v2/auth"
+    result = `#{curl}`.tap { |o| $stderr.puts curl, o}
+
+    @access_token = JSON.parse(result)["access_token"]
+    result
   end
 end
 

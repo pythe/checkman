@@ -91,10 +91,9 @@ If you ever need to kill Checkman:
   e.g. `semaphore.check 0691ba134341d1baa978436535b6f2b79fec91 27680 1iGx6asGJHk6aMdsB4eu`  
   (Tip: open project's settings page, then find the "API" tab to get required ids)
   
-* `codeship.check <PROJECT_ID> <API_KEY> <REPO_BRANCH>`  
+* `codeship.check <ORG_UUID> <PROJECT_UUID> <USERNAME> <PASSWORD> <REPO_BRANCH>`  
   checks specific Codeship CI build status  
-  e.g. `codeship.check 12345 0ea7bbedf3340775cecee5f816d03bdfac69c81f816d03bdfac69c81fqw2 master`  
-  (Tip: find the API_KEY under account settings)
+  e.g. `codeship.check 93c1ff7b-214f-441a-86c1-501a2b6acd5d b527e47f-4566-4076-ad28-1010fd8fc936 flynn@mcp.com passw0rd master`
 
 * `circleci.check <USERNAME> <PROJECT_NAME> <BRANCH_NAME> <API_TOKEN>`  
   checks specific Circle CI build status  
